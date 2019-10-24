@@ -28,6 +28,7 @@ use think\model\relation\HasOneThrough;
 use think\model\relation\MorphMany;
 use think\model\relation\MorphOne;
 use think\model\relation\MorphTo;
+use think\model\relation\OneToOne;
 
 /**
  * 模型关联处理
@@ -119,7 +120,7 @@ trait RelationShip
             $value = $this->$method($value, array_merge($this->data, $data));
         }
 
-        $this->relation[$name] = $value;
+        $this->relation[$this->getRealFieldName($name)] = $value;
 
         return $this;
     }
@@ -156,7 +157,7 @@ trait RelationShip
             $relationResult = $this->$method();
 
             if (isset($withRelationAttr[$relationName])) {
-                $relationResult->getQuery()->withAttr($withRelationAttr[$relationName]);
+                $relationResult->withAttr($withRelationAttr[$relationName]);
             }
 
             $this->relation[$relation] = $relationResult->getRelation($subRelation, $closure);
@@ -186,13 +187,14 @@ trait RelationShip
      * @param  integer $count    个数
      * @param  string  $id       关联表的统计字段
      * @param  string  $joinType JOIN类型
+     * @param  Query   $query    Query对象
      * @return Query
      */
-    public static function has(string $relation, string $operator = '>=', int $count = 1, string $id = '*', string $joinType = ''): Query
+    public static function has(string $relation, string $operator = '>=', int $count = 1, string $id = '*', string $joinType = '', Query $query = null): Query
     {
         return (new static())
             ->$relation()
-            ->has($operator, $count, $id, $joinType);
+            ->has($operator, $count, $id, $joinType, $query);
     }
 
     /**
@@ -202,13 +204,38 @@ trait RelationShip
      * @param  mixed  $where    查询条件（数组或者闭包）
      * @param  mixed  $fields   字段
      * @param  string $joinType JOIN类型
+     * @param  Query  $query    Query对象
      * @return Query
      */
-    public static function hasWhere(string $relation, $where = [], string $fields = '*', string $joinType = ''): Query
+    public static function hasWhere(string $relation, $where = [], string $fields = '*', string $joinType = '', Query $query = null): Query
     {
         return (new static())
             ->$relation()
-            ->hasWhere($where, $fields, $joinType);
+            ->hasWhere($where, $fields, $joinType, $query);
+    }
+
+    /**
+     * 预载入关联查询 JOIN方式
+     * @access public
+     * @param  Query   $query    Query对象
+     * @param  string  $relation 关联方法名
+     * @param  mixed   $field    字段
+     * @param  string  $joinType JOIN类型
+     * @param  Closure $closure  闭包
+     * @param  bool    $first
+     * @return bool
+     */
+    public function eagerly(Query $query, string $relation, $field, string $joinType = '', Closure $closure = null, bool $first = false): bool
+    {
+        $relation = Str::camel($relation);
+        $class    = $this->$relation();
+
+        if ($class instanceof OneToOne) {
+            $class->eagerly($query, $relation, $field, $joinType, $closure, $first);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -241,22 +268,22 @@ trait RelationShip
                 $subRelation = [$subRelation];
             }
 
+            $relationName = $relation;
             $relation     = Str::camel($relation);
-            $relationName = Str::snake($relation);
 
             $relationResult = $this->$relation();
 
             if (isset($withRelationAttr[$relationName])) {
-                $relationResult->getQuery()->withAttr($withRelationAttr[$relationName]);
+                $relationResult->withAttr($withRelationAttr[$relationName]);
             }
 
             if (is_scalar($cache)) {
                 $relationCache = [$cache];
             } else {
-                $relationCache = $cache[$relationName] ?? [];
+                $relationCache = $cache[$relationName] ?? $cache;
             }
 
-            $relationResult->eagerlyResultSet($resultSet, $relation, $subRelation, $closure, $relationCache, $join);
+            $relationResult->eagerlyResultSet($resultSet, $relationName, $subRelation, $closure, $relationCache, $join);
         }
     }
 
@@ -290,13 +317,13 @@ trait RelationShip
                 $subRelation = [$subRelation];
             }
 
+            $relationName = $relation;
             $relation     = Str::camel($relation);
-            $relationName = Str::snake($relation);
 
             $relationResult = $this->$relation();
 
             if (isset($withRelationAttr[$relationName])) {
-                $relationResult->getQuery()->withAttr($withRelationAttr[$relationName]);
+                $relationResult->withAttr($withRelationAttr[$relationName]);
             }
 
             if (is_scalar($cache)) {
@@ -305,7 +332,7 @@ trait RelationShip
                 $relationCache = $cache[$relationName] ?? [];
             }
 
-            $relationResult->eagerlyResult($result, $relation, $subRelation, $closure, $relationCache, $join);
+            $relationResult->eagerlyResult($result, $relationName, $subRelation, $closure, $relationCache, $join);
         }
     }
 
@@ -338,13 +365,14 @@ trait RelationShip
     /**
      * 关联统计
      * @access public
-     * @param  Model    $result     数据对象
-     * @param  array    $relations  关联名
-     * @param  string   $aggregate  聚合查询方法
-     * @param  string   $field      字段
+     * @param  Query  $query       查询对象
+     * @param  array  $relations   关联名
+     * @param  string $aggregate   聚合查询方法
+     * @param  string $field       字段
+     * @param  bool   $useSubQuery 子查询
      * @return void
      */
-    public function relationCount(Model $result, array $relations, string $aggregate = 'sum', string $field = '*'): void
+    public function relationCount(Query $query, array $relations, string $aggregate = 'sum', string $field = '*', bool $useSubQuery = true): void
     {
         foreach ($relations as $key => $relation) {
             $closure = $name = null;
@@ -358,13 +386,22 @@ trait RelationShip
             }
 
             $relation = Str::camel($relation);
-            $count    = $this->$relation()->relationCount($result, $closure, $aggregate, $field, $name);
+
+            if ($useSubQuery) {
+                $count = $this->$relation()->getRelationCountQuery($closure, $aggregate, $field, $name);
+            } else {
+                $count = $this->$relation()->relationCount($this, $closure, $aggregate, $field, $name);
+            }
 
             if (empty($name)) {
                 $name = Str::snake($relation) . '_' . $aggregate;
             }
 
-            $result->setAttr($name, $count);
+            if ($useSubQuery) {
+                $query->field(['(' . $count . ')' => $name]);
+            } else {
+                $this->setAttr($name, $count);
+            }
         }
     }
 
@@ -639,7 +676,7 @@ trait RelationShip
     protected function getRelationData(Relation $modelRelation)
     {
         if ($this->parent && !$modelRelation->isSelfRelation()
-            && get_class($this->parent) == get_class($modelRelation->getModel(false))) {
+            && get_class($this->parent) == get_class($modelRelation->getModel())) {
             return $this->parent;
         }
 

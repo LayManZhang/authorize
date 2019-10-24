@@ -10,7 +10,7 @@
 // +----------------------------------------------------------------------
 declare (strict_types = 1);
 
-namespace think\middleware;
+namespace think\trace;
 
 use Closure;
 use think\App;
@@ -60,6 +60,7 @@ class TraceDebug
 
         // 注册日志监听
         if ($debug) {
+            $this->log = [];
             $this->app->event->listen(LogWrite::class, function ($event) {
                 if (empty($this->config['channel']) || $this->config['channel'] == $event->channel) {
                     $this->log = array_merge_recursive($this->log, $event->log);
@@ -86,7 +87,7 @@ class TraceDebug
 
         unset($config['type']);
 
-        $trace = App::factory($type, '\\think\\debug\\', $config);
+        $trace = App::factory($type, '\\think\\trace\\', $config);
 
         if ($response instanceof Redirect) {
             //TODO 记录

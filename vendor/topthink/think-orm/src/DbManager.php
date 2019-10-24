@@ -16,7 +16,7 @@ use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use think\db\BaseQuery;
-use think\db\Connection;
+use think\db\ConnectionInterface;
 use think\db\Query;
 use think\db\Raw;
 
@@ -92,13 +92,15 @@ class DbManager
      */
     protected function modelMaker()
     {
+        $this->triggerSql();
+
+        Model::setDb($this);
+
+        if (is_object($this->event)) {
+            Model::setEvent($this->event);
+        }
+
         Model::maker(function (Model $model) {
-            $model->setDb($this);
-
-            if (is_object($this->event)) {
-                $model->setEvent($this->event);
-            }
-
             $isAutoWriteTimestamp = $model->getAutoWriteTimestamp();
 
             if (is_null($isAutoWriteTimestamp)) {
@@ -116,6 +118,32 @@ class DbManager
     }
 
     /**
+     * 监听SQL
+     * @access protected
+     * @return void
+     */
+    protected function triggerSql(): void
+    {
+        // 监听SQL
+        $this->listen(function ($sql, $time, $master) {
+            if (0 === strpos($sql, 'CONNECT:')) {
+                $this->log($sql);
+                return;
+            }
+
+            // 记录SQL
+            if (is_bool($master)) {
+                // 分布式记录当前操作的主从
+                $master = $master ? 'master|' : 'slave|';
+            } else {
+                $master = '';
+            }
+
+            $this->log($sql . ' [ ' . $master . 'RunTime:' . $time . 's ]');
+        });
+    }
+
+    /**
      * 初始化配置参数
      * @access public
      * @param array $config 连接配置
@@ -129,7 +157,7 @@ class DbManager
     /**
      * 设置缓存对象
      * @access public
-     * @param  CacheInterface $cache 缓存对象
+     * @param CacheInterface $cache 缓存对象
      * @return void
      */
     public function setCache(CacheInterface $cache): void
@@ -140,7 +168,7 @@ class DbManager
     /**
      * 设置日志对象
      * @access public
-     * @param  LoggerInterface $log 日志对象
+     * @param LoggerInterface $log 日志对象
      * @return void
      */
     public function setLog(LoggerInterface $log): void
@@ -155,7 +183,7 @@ class DbManager
      * @param string $type 日志类型
      * @return void
      */
-    public function log($log, $type = 'sql')
+    public function log(string $log, string $type = 'sql')
     {
         if ($this->log) {
             $this->log->log($type, $log);
@@ -167,18 +195,24 @@ class DbManager
     /**
      * 获得查询日志（没有设置日志对象使用）
      * @access public
+     * @param bool $clear 是否清空
      * @return array
      */
-    public function getDbLog(): array
+    public function getDbLog(bool $clear = false): array
     {
-        return $this->dbLog;
+        $logs = $this->dbLog;
+        if ($clear) {
+            $this->dbLog = [];
+        }
+
+        return $logs;
     }
 
     /**
      * 获取配置参数
      * @access public
-     * @param  string $name 配置参数
-     * @param  mixed  $default 默认值
+     * @param string $name    配置参数
+     * @param mixed  $default 默认值
      * @return mixed
      */
     public function getConfig(string $name = '', $default = null)
@@ -193,18 +227,13 @@ class DbManager
     /**
      * 创建/切换数据库连接查询
      * @access public
-     * @param string|null $name 连接配置标识
+     * @param string|null $name  连接配置标识
      * @param bool        $force 强制重新连接
      * @return BaseQuery
      */
     public function connect(string $name = null, bool $force = false): BaseQuery
     {
         $connection = $this->instance($name, $force);
-        $connection->setDb($this);
-
-        if ($this->cache) {
-            $connection->setCache($this->cache);
-        }
 
         $class = $connection->getQueryClass();
         $query = new $class($connection);
@@ -222,33 +251,62 @@ class DbManager
      * @access protected
      * @param string|null $name  连接标识
      * @param bool        $force 强制重新连接
-     * @return Connection
+     * @return ConnectionInterface
      */
-    protected function instance(string $name = null, bool $force = false): Connection
+    protected function instance(string $name = null, bool $force = false): ConnectionInterface
     {
         if (empty($name)) {
             $name = $this->getConfig('default', 'mysql');
         }
 
         if ($force || !isset($this->instance[$name])) {
-            $connections = $this->getConfig('connections');
-            if (!isset($connections[$name])) {
-                throw new InvalidArgumentException('Undefined db config:' . $name);
-            }
-
-            $config = $connections[$name];
-            $type   = !empty($config['type']) ? $config['type'] : 'mysql';
-
-            if (false !== strpos($type, '\\')) {
-                $class = $type;
-            } else {
-                $class = '\\think\\db\\connector\\' . ucfirst($type);
-            }
-
-            $this->instance[$name] = new $class($config);
+            $this->instance[$name] = $this->createConnection($name);
         }
 
         return $this->instance[$name];
+    }
+
+    /**
+     * 获取连接配置
+     * @param string $name
+     * @return array
+     */
+    protected function getConnectionConfig(string $name): array
+    {
+        $connections = $this->getConfig('connections');
+        if (!isset($connections[$name])) {
+            throw new InvalidArgumentException('Undefined db config:' . $name);
+        }
+
+        return $connections[$name];
+    }
+
+    /**
+     * 创建连接
+     * @param $name
+     * @return ConnectionInterface
+     */
+    protected function createConnection(string $name): ConnectionInterface
+    {
+        $config = $this->getConnectionConfig($name);
+
+        $type = !empty($config['type']) ? $config['type'] : 'mysql';
+
+        if (false !== strpos($type, '\\')) {
+            $class = $type;
+        } else {
+            $class = '\\think\\db\\connector\\' . ucfirst($type);
+        }
+
+        /** @var ConnectionInterface $connection */
+        $connection = new $class($config);
+        $connection->setDb($this);
+
+        if ($this->cache) {
+            $connection->setCache($this->cache);
+        }
+
+        return $connection;
     }
 
     /**
@@ -322,7 +380,7 @@ class DbManager
      */
     public function event(string $event, callable $callback): void
     {
-        $this->event[$event] = $callback;
+        $this->event[$event][] = $callback;
     }
 
     /**
@@ -330,13 +388,14 @@ class DbManager
      * @access public
      * @param string $event  事件名
      * @param mixed  $params 传入参数
-     * @param bool   $once
      * @return mixed
      */
-    public function trigger(string $event, $params = null, bool $once = false)
+    public function trigger(string $event, $params = null)
     {
         if (isset($this->event[$event])) {
-            return call_user_func_array($this->event[$event], [$this]);
+            foreach ($this->event[$event] as $callback) {
+                call_user_func_array($callback, [$this]);
+            }
         }
     }
 

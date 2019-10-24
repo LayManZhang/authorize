@@ -45,7 +45,7 @@ if (!function_exists('abort')) {
      * @param string           $message 错误信息
      * @param array            $header  参数
      */
-    function abort($code, string $message = null, array $header = [])
+    function abort($code, string $message = '', array $header = [])
     {
         if ($code instanceof Response) {
             throw new HttpResponseException($code);
@@ -238,7 +238,7 @@ if (!function_exists('halt')) {
     {
         dump(...$vars);
 
-        throw new HttpResponseException(new Response);
+        throw new HttpResponseException(Response::create());
     }
 }
 
@@ -274,8 +274,8 @@ if (!function_exists('input')) {
         }
 
         return isset($has) ?
-            request()->has($key, $method) :
-            request()->$method($key, $default, $filter);
+        request()->has($key, $method) :
+        request()->$method($key, $default, $filter);
     }
 }
 
@@ -366,19 +366,13 @@ if (!function_exists('parse_name')) {
 if (!function_exists('redirect')) {
     /**
      * 获取\think\response\Redirect对象实例
-     * @param mixed         $url    重定向地址 支持Url::build方法的地址
-     * @param array|integer $params 额外参数
-     * @param int           $code   状态码
+     * @param string $url  重定向地址
+     * @param int    $code 状态码
      * @return \think\response\Redirect
      */
-    function redirect($url = [], $params = [], $code = 302): Redirect
+    function redirect(string $url, int $code = 302): Redirect
     {
-        if (is_integer($params)) {
-            $code   = $params;
-            $params = [];
-        }
-
-        return Response::create($url, 'redirect', $code)->params($params);
+        return Response::create($url, 'redirect', $code);
     }
 }
 
@@ -415,11 +409,13 @@ if (!function_exists('session')) {
      * @param mixed  $value session值
      * @return mixed
      */
-    function session(string $name = null, $value = '')
+    function session($name = '', $value = '')
     {
         if (is_null($name)) {
             // 清除
             Session::clear();
+        } elseif ('' === $name) {
+            return Session::all();
         } elseif (is_null($value)) {
             // 删除
             Session::delete($name);
@@ -511,12 +507,13 @@ if (!function_exists('url')) {
 if (!function_exists('validate')) {
     /**
      * 生成验证对象
-     * @param string|array $validate 验证器类名或者验证规则数组
-     * @param array        $message  错误提示信息
-     * @param bool         $batch    是否批量验证
+     * @param string|array $validate      验证器类名或者验证规则数组
+     * @param array        $message       错误提示信息
+     * @param bool         $batch         是否批量验证
+     * @param bool         $failException 是否抛出异常
      * @return Validate
      */
-    function validate($validate = '', array $message = [], bool $batch = false): Validate
+    function validate($validate = '', array $message = [], bool $batch = false, bool $failException = true): Validate
     {
         if (is_array($validate) || '' === $validate) {
             $v = new Validate();
@@ -538,7 +535,7 @@ if (!function_exists('validate')) {
             }
         }
 
-        return $v->message($message)->batch($batch)->failException(true);
+        return $v->message($message)->batch($batch)->failException($failException);
     }
 }
 
@@ -641,7 +638,7 @@ if (!function_exists('public_path')) {
 
 if (!function_exists('runtime_path')) {
     /**
-     * 获取web根目录
+     * 获取应用运行时目录
      *
      * @param string $path
      * @return string

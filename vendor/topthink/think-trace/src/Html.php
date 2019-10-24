@@ -9,7 +9,7 @@
 // | Author: liu21st <liu21st@gmail.com>
 // +----------------------------------------------------------------------
 declare (strict_types = 1);
-namespace think\debug;
+namespace think\trace;
 
 use think\App;
 use think\Response;
@@ -43,7 +43,7 @@ class Html
         $request = $app->request;
 
         $contentType = $response->getHeader('Content-Type');
-        $accept      = $request->header('accept');
+        $accept      = $request->header('accept', '');
         if (strpos($accept, 'application/json') === 0 || $request->isAjax()) {
             return false;
         } elseif (!empty($contentType) && strpos($contentType, 'html') === false) {
@@ -69,7 +69,7 @@ class Html
             '缓存信息' => $app->cache->getReadTimes() . ' reads,' . $app->cache->getWriteTimes() . ' writes',
         ];
 
-        if ($app->session->getId(false)) {
+        if (isset($app->session)) {
             $base['会话信息'] = 'SESSION_ID=' . $app->session->getId();
         }
 
@@ -102,7 +102,7 @@ class Html
         }
         // 调用Trace页面模板
         ob_start();
-        include $this->config['file'] ?: __DIR__ . '/../../tpl/page_trace.tpl';
+        include $this->config['file'] ?: __DIR__ . '/tpl/page_trace.tpl';
         return ob_get_clean();
     }
 

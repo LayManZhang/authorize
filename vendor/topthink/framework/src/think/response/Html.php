@@ -2,25 +2,33 @@
 // +----------------------------------------------------------------------
 // | ThinkPHP [ WE CAN DO IT JUST THINK ]
 // +----------------------------------------------------------------------
-// | Copyright (c) 2006~2018 http://thinkphp.cn All rights reserved.
+// | Copyright (c) 2006~2019 http://thinkphp.cn All rights reserved.
 // +----------------------------------------------------------------------
 // | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
 // +----------------------------------------------------------------------
 // | Author: liu21st <liu21st@gmail.com>
 // +----------------------------------------------------------------------
+declare (strict_types = 1);
+
+namespace think\response;
+
+use think\Cookie;
+use think\Response;
 
 /**
- * php think build 自动生成应用的目录结构的定义示例
+ * Html Response
  */
-return [
-    // 需要自动创建的文件
-    '__file__'   => [],
-    // 需要自动创建的目录
-    '__dir__'    => ['controller', 'model', 'view'],
-    // 需要自动创建的控制器
-    'controller' => ['Index'],
-    // 需要自动创建的模型
-    'model'      => ['User'],
-    // 需要自动创建的模板
-    'view'       => ['index/index'],
-];
+class Html extends Response
+{
+    /**
+     * 输出type
+     * @var string
+     */
+    protected $contentType = 'text/html';
+
+    public function __construct(Cookie $cookie, $data = '', int $code = 200)
+    {
+        $this->init($data, $code);
+        $this->cookie = $cookie;
+    }
+}

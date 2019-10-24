@@ -9,7 +9,7 @@
 // | Author: yangweijie <yangweijiester@gmail.com>
 // +----------------------------------------------------------------------
 declare (strict_types = 1);
-namespace think\debug;
+namespace think\trace;
 
 use think\App;
 use think\Response;
@@ -40,7 +40,7 @@ class Console
     {
         $request     = $app->request;
         $contentType = $response->getHeader('Content-Type');
-        $accept      = $request->header('accept');
+        $accept      = $request->header('accept', '');
         if (strpos($accept, 'application/json') === 0 || $request->isAjax()) {
             return false;
         } elseif (!empty($contentType) && strpos($contentType, 'html') === false) {
@@ -65,7 +65,7 @@ class Console
             '缓存信息' => $app->cache->getReadTimes() . ' reads,' . $app->cache->getWriteTimes() . ' writes',
         ];
 
-        if ($app->session->getId(false)) {
+        if (isset($app->session)) {
             $base['会话信息'] = 'SESSION_ID=' . $app->session->getId();
         }
 
@@ -100,7 +100,7 @@ class Console
         //输出到控制台
         $lines = '';
         foreach ($trace as $type => $msg) {
-            $lines .= $this->console($type, $msg);
+            $lines .= $this->console($type, empty($msg) ? [] : $msg);
         }
         $js = <<<JS
 

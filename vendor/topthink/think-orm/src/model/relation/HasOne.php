@@ -55,7 +55,7 @@ class HasOne extends OneToOne
         $localKey = $this->localKey;
 
         if ($closure) {
-            $closure($this);
+            $closure($this->getClosureType($closure));
         }
 
         // 判断关联类型执行查询
@@ -66,6 +66,11 @@ class HasOne extends OneToOne
             ->find();
 
         if ($relationModel) {
+            if (!empty($this->bindAttr)) {
+                // 绑定关联属性
+                $this->bindAttr($relationModel, $this->parent);
+            }
+
             $relationModel->setParent(clone $this->parent);
         }
 
@@ -84,7 +89,7 @@ class HasOne extends OneToOne
     public function getRelationCountQuery(Closure $closure = null, string $aggregate = 'count', string $field = '*', string &$name = null): string
     {
         if ($closure) {
-            $closure($this, $name);
+            $closure($this->getClosureType($closure), $name);
         }
 
         return $this->query
@@ -112,7 +117,7 @@ class HasOne extends OneToOne
         }
 
         if ($closure) {
-            $closure($this, $name);
+            $closure($this->getClosureType($closure), $name);
         }
 
         return $this->query
@@ -127,9 +132,10 @@ class HasOne extends OneToOne
      * @param  integer $count    个数
      * @param  string  $id       关联表的统计字段
      * @param  string  $joinType JOIN类型
+     * @param  Query   $query    Query对象
      * @return Query
      */
-    public function has(string $operator = '>=', int $count = 1, string $id = '*', string $joinType = ''): Query
+    public function has(string $operator = '>=', int $count = 1, string $id = '*', string $joinType = '', Query $query = null): Query
     {
         $table      = $this->query->getTable();
         $model      = class_basename($this->parent);
@@ -137,17 +143,16 @@ class HasOne extends OneToOne
         $localKey   = $this->localKey;
         $foreignKey = $this->foreignKey;
         $softDelete = $this->query->getOptions('soft_delete');
+        $query      = $query ?: $this->parent->db()->alias($model);
 
-        return $this->parent->db()
-            ->alias($model)
-            ->whereExists(function ($query) use ($table, $model, $relation, $localKey, $foreignKey, $softDelete) {
-                $query->table([$table => $relation])
-                    ->field($relation . '.' . $foreignKey)
-                    ->whereExp($model . '.' . $localKey, '=' . $relation . '.' . $foreignKey)
-                    ->when($softDelete, function ($query) use ($softDelete, $relation) {
-                        $query->where($relation . strstr($softDelete[0], '.'), '=' == $softDelete[1][0] ? $softDelete[1][1] : null);
-                    });
-            });
+        return $query->whereExists(function ($query) use ($table, $model, $relation, $localKey, $foreignKey, $softDelete) {
+            $query->table([$table => $relation])
+                ->field($relation . '.' . $foreignKey)
+                ->whereExp($model . '.' . $localKey, '=' . $relation . '.' . $foreignKey)
+                ->when($softDelete, function ($query) use ($softDelete, $relation) {
+                    $query->where($relation . strstr($softDelete[0], '.'), '=' == $softDelete[1][0] ? $softDelete[1][1] : null);
+                });
+        });
     }
 
     /**
@@ -156,9 +161,10 @@ class HasOne extends OneToOne
      * @param  mixed  $where 查询条件（数组或者闭包）
      * @param  mixed  $fields   字段
      * @param  string $joinType JOIN类型
+     * @param  Query  $query    Query对象
      * @return Query
      */
-    public function hasWhere($where = [], $fields = null, string $joinType = ''): Query
+    public function hasWhere($where = [], $fields = null, string $joinType = '', Query $query = null): Query
     {
         $table    = $this->query->getTable();
         $model    = class_basename($this->parent);
@@ -175,10 +181,9 @@ class HasOne extends OneToOne
 
         $fields     = $this->getRelationQueryFields($fields, $model);
         $softDelete = $this->query->getOptions('soft_delete');
+        $query      = $query ?: $this->parent->db()->alias($model);
 
-        return $this->parent->db()
-            ->alias($model)
-            ->field($fields)
+        return $query->field($fields)
             ->join([$table => $relation], $model . '.' . $this->localKey . '=' . $relation . '.' . $this->foreignKey, $joinType ?: $this->joinType)
             ->when($softDelete, function ($query) use ($softDelete, $relation) {
                 $query->where($relation . strstr($softDelete[0], '.'), '=' == $softDelete[1][0] ? $softDelete[1][1] : null);
@@ -214,10 +219,7 @@ class HasOne extends OneToOne
 
             $data = $this->eagerlyWhere([
                 [$foreignKey, 'in', $range],
-            ], $foreignKey, $relation, $subRelation, $closure, $cache);
-
-            // 关联属性名
-            $attr = Str::snake($relation);
+            ], $foreignKey, $subRelation, $closure, $cache);
 
             // 关联数据封装
             foreach ($resultSet as $result) {
@@ -235,7 +237,7 @@ class HasOne extends OneToOne
                     $this->bindAttr($relationModel, $result);
                 } else {
                     // 设置关联属性
-                    $result->setRelation($attr, $relationModel);
+                    $result->setRelation($relation, $relationModel);
                 }
             }
         }
@@ -260,7 +262,7 @@ class HasOne extends OneToOne
 
         $data = $this->eagerlyWhere([
             [$foreignKey, '=', $result->$localKey],
-        ], $foreignKey, $relation, $subRelation, $closure, $cache);
+        ], $foreignKey, $subRelation, $closure, $cache);
 
         // 关联模型
         if (!isset($data[$result->$localKey])) {
@@ -275,7 +277,7 @@ class HasOne extends OneToOne
             // 绑定关联属性
             $this->bindAttr($relationModel, $result);
         } else {
-            $result->setRelation(Str::snake($relation), $relationModel);
+            $result->setRelation($relation, $relationModel);
         }
     }
 
