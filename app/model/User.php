@@ -82,9 +82,10 @@ class User extends Model
   public function getPersonal()
   {
     $result = array();
-    $row = User::field('id,name,username,email,city,tel,department,position,status,update_time,create_time')
-      ->find(Session::get('id'))->toArray();
-    $result = ['code' => 0, 'msg' => '角色成员已全部清除', 'count' => 1, 'data' => [$row]];
+    $id = Session::get('id');
+    $row = User::field('id,name,username,email,tel,department,position,status,update_time,create_time')
+      ->find($id)->toArray();
+    $result = ['code' => 0, 'msg' => '', 'count' => 1, 'data' => [$row]];
     return $result;
   }
 
