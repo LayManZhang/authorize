@@ -2,7 +2,7 @@
  * @Author: 彭雨
  * @Date: 2019-10-24 11:08:49
  * @LastEditors  : 彭雨
- * @LastEditTime : 2020-01-04 15:31:19
+ * @LastEditTime : 2020-01-09 12:35:37
  -->
 # authorize
 
@@ -14,7 +14,7 @@ GitHub项目地址：[https://github.com/fkueyu/authorize](https://github.com/fk
 码云项目地址：[https://gitee.com/frxc/authorize](https://gitee.com/frxc/authorize)  
 
 #### 软件架构
-开发环境： XAMPP 3.2.4（PHP 7.3.7+Mysql），ThinkPHP 6（开发版本），Layui 2.5.4，jquery 3.4.1
+开发环境： XAMPP 3.2.4（PHP 7.3.7+Mysql），ThinkPHP 6.0.1，Layui 2.5.4，jquery 3.4.1
 后续ThinkPHP 6发布正式版本后会同步升级到最新版本。
 
 #### 安装教程

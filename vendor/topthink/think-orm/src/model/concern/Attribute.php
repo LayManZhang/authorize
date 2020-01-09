@@ -398,9 +398,9 @@ trait Attribute
         }
 
         if (is_array($type)) {
-            list($type, $param) = $type;
+            [$type, $param] = $type;
         } elseif (strpos($type, ':')) {
-            list($type, $param) = explode(':', $type, 2);
+            [$type, $param] = explode(':', $type, 2);
         }
 
         switch ($type) {
@@ -411,7 +411,7 @@ trait Attribute
                 if (empty($param)) {
                     $value = (float) $value;
                 } else {
-                    $value = (float) number_format($value, $param, '.', '');
+                    $value = (float) number_format($value, (int) $param, '.', '');
                 }
                 break;
             case 'boolean':
@@ -563,9 +563,9 @@ trait Attribute
         }
 
         if (is_array($type)) {
-            list($type, $param) = $type;
+            [$type, $param] = $type;
         } elseif (strpos($type, ':')) {
-            list($type, $param) = explode(':', $type, 2);
+            [$type, $param] = explode(':', $type, 2);
         }
 
         switch ($type) {
@@ -576,7 +576,7 @@ trait Attribute
                 if (empty($param)) {
                     $value = (float) $value;
                 } else {
-                    $value = (float) number_format($value, $param, '.', '');
+                    $value = (float) number_format($value, (int) $param, '.', '');
                 }
                 break;
             case 'boolean':
@@ -637,7 +637,7 @@ trait Attribute
             $name = $this->getRealFieldName($name);
 
             if (strpos($name, '.')) {
-                list($name, $key) = explode('.', $name);
+                [$name, $key] = explode('.', $name);
 
                 $this->withAttr[$name][$key] = $callback;
             } else {

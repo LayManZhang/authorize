@@ -60,7 +60,7 @@ class User extends Model
           $user->setAttr($field, $password_hash);
           $user->save();
           Session::set('intensity', 0);
-          $result = ['code' => 0, 'data' => '/index/user/personal', 'msg' => '密码更新成功,即将刷新页面...'];
+          $result = ['code' => 0, 'data' => '/authorize/personal', 'msg' => '密码更新成功,即将刷新页面...'];
         } else {
           $result = ['code' => -1, 'data' => '', 'msg' => '旧密码错误，请检查'];
         }
